@@ -43,6 +43,11 @@ public class Keyboard2 extends InputMethodService
 
   private FoldStateTracker _foldStateTracker;
 
+  /** Floating button view shown when keyboard is minimized. */
+  private FloatingButtonView _floatingButton = null;
+  /** Whether the keyboard is currently in minimized state. */
+  private boolean _isMinimized = false;
+
   /** Layout currently visible before it has been modified. */
   KeyboardData current_layout_unmodified()
   {
@@ -211,6 +216,7 @@ public class Keyboard2 extends InputMethodService
       _keyboardView = (Keyboard2View)inflate_view(R.layout.keyboard);
       _emojiPane = null;
       _clipboard_pane = null;
+      _floatingButton = null; // Reset to pick up new theme
       setInputView(_keyboardView);
     }
     _keyboardView.reset();
@@ -237,7 +243,11 @@ public class Keyboard2 extends InputMethodService
     _currentSpecialLayout = refresh_special_layout();
     _keyboardView.setKeyboard(current_layout());
     _keyeventhandler.started(_config);
-    setInputView(_keyboardView);
+    // If minimized, show floating button instead of keyboard
+    if (_isMinimized)
+      setInputView(_floatingButton);
+    else
+      setInputView(_keyboardView);
     Logs.debug_startup_input_view(info, _config);
   }
 
@@ -436,6 +446,10 @@ public class Keyboard2 extends InputMethodService
           VoiceImeSwitcher.choose_voice_ime(Keyboard2.this, get_imm(),
               Config.globalPrefs());
           break;
+
+        case SWITCH_MINIMIZE:
+          minimizeKeyboard();
+          break;
       }
     }
 
@@ -473,5 +487,38 @@ public class Keyboard2 extends InputMethodService
   private View inflate_view(int layout)
   {
     return View.inflate(new ContextThemeWrapper(this, _config.theme), layout, null);
+  }
+
+  /** Minimize the keyboard to a floating button. */
+  private void minimizeKeyboard()
+  {
+    if (_isMinimized)
+      return;
+    _isMinimized = true;
+    if (_floatingButton == null)
+    {
+      _floatingButton = (FloatingButtonView)inflate_view(R.layout.floating_button);
+      _floatingButton.setOnRestoreListener(new FloatingButtonView.OnRestoreListener()
+      {
+        @Override
+        public void onRestore()
+        {
+          restoreKeyboard();
+        }
+      });
+      // Set colors from theme
+      Theme theme = new Theme(new ContextThemeWrapper(this, _config.theme), null);
+      _floatingButton.setColors(theme.colorKey, theme.labelColor);
+    }
+    setInputView(_floatingButton);
+  }
+
+  /** Restore the keyboard from minimized state. */
+  private void restoreKeyboard()
+  {
+    if (!_isMinimized)
+      return;
+    _isMinimized = false;
+    setInputView(_keyboardView);
   }
 }
